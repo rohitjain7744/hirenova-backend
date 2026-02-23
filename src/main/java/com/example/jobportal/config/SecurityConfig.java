@@ -25,18 +25,18 @@ public class SecurityConfig {
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
 
         http
-            .cors(cors -> {})   // Enable CORS
-            .csrf(csrf -> csrf.disable()) // Disable CSRF for REST APIs
+            .cors(cors -> {}) // Enable CORS
+            .csrf(csrf -> csrf.disable())
             .authorizeHttpRequests(auth -> auth
                     .requestMatchers("/auth/**").permitAll()
-                    .anyRequest().permitAll() // change to authenticated() later if needed
+                    .anyRequest().permitAll()
             );
 
         return http.build();
     }
 
     // ==========================
-    // PASSWORD ENCODER (MANDATORY)
+    // PASSWORD ENCODER
     // ==========================
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -44,23 +44,25 @@ public class SecurityConfig {
     }
 
     // ==========================
-    // CORS CONFIGURATION
+    // GLOBAL CORS CONFIG
     // ==========================
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
 
         CorsConfiguration configuration = new CorsConfiguration();
 
-        configuration.setAllowedOrigins(List.of(
-                "hire-nova.netlify.app"
-                // Add production frontend URL here later
-        ));
+        // Allow ALL Netlify domains (recommended)
+        configuration.addAllowedOriginPattern("https://*.netlify.app");
+
+        // Allow local development
+        configuration.addAllowedOriginPattern("http://localhost:5173");
 
         configuration.setAllowedMethods(List.of(
                 "GET", "POST", "PUT", "DELETE", "OPTIONS"
         ));
 
         configuration.setAllowedHeaders(List.of("*"));
+
         configuration.setAllowCredentials(true);
 
         UrlBasedCorsConfigurationSource source =
