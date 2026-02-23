@@ -24,15 +24,26 @@ public class UserService {
     // ==========================
     public User register(User user) {
 
-        if (user.getEmail() == null || user.getPassword() == null) {
-            throw new RuntimeException("Email and password are required");
+        if (user == null) {
+            throw new IllegalArgumentException("User cannot be null");
+        }
+
+        if (user.getEmail() == null || user.getEmail().isBlank()) {
+            throw new IllegalArgumentException("Email is required");
+        }
+
+        if (user.getPassword() == null || user.getPassword().isBlank()) {
+            throw new IllegalArgumentException("Password is required");
         }
 
         if (userRepository.existsByEmail(user.getEmail())) {
-            throw new RuntimeException("Email already registered");
+            throw new IllegalStateException("Email already registered");
         }
 
+        // Encode password before saving
         user.setPassword(passwordEncoder.encode(user.getPassword()));
+
+        // Default role
         user.setRole(Role.USER);
 
         return userRepository.save(user);
@@ -49,6 +60,11 @@ public class UserService {
     // PASSWORD CHECK
     // ==========================
     public boolean passwordMatches(String rawPassword, String encodedPassword) {
+
+        if (rawPassword == null || encodedPassword == null) {
+            return false;
+        }
+
         return passwordEncoder.matches(rawPassword, encodedPassword);
     }
 }
