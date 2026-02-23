@@ -39,7 +39,7 @@ public class SecurityConfig {
         CorsConfiguration configuration = new CorsConfiguration();
         configuration.setAllowedOrigins(List.of(
                 "http://localhost:5173",
-                "https://your-frontend-domain.com"   // production domain yahan daalna
+                "https://hirenova-backend-production.up.railway.app"   // production domain yahan daalna
         ));
 
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
