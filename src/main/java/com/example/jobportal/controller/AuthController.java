@@ -2,8 +2,10 @@ package com.example.jobportal.controller;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 import com.example.jobportal.dto.AuthResponse;
 import com.example.jobportal.dto.LoginRequest;
@@ -12,16 +14,12 @@ import com.example.jobportal.service.UserService;
 
 @RestController
 @RequestMapping("/auth")
-@CrossOrigin(origins = "http://localhost:5173")
 public class AuthController {
 
     private final UserService userService;
-    private final PasswordEncoder passwordEncoder;
 
-    public AuthController(UserService userService,
-                          PasswordEncoder passwordEncoder) {
+    public AuthController(UserService userService) {
         this.userService = userService;
-        this.passwordEncoder = passwordEncoder;
     }
 
     // ==========================
@@ -30,11 +28,15 @@ public class AuthController {
     @PostMapping("/register")
     public ResponseEntity<AuthResponse> register(@RequestBody User user) {
 
+        if (user.getEmail() == null || user.getPassword() == null) {
+            return ResponseEntity.badRequest()
+                    .body(new AuthResponse("Email and password are required"));
+        }
+
         userService.register(user);
 
-        return ResponseEntity.ok(
-                new AuthResponse("User Registered Successfully")
-        );
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(new AuthResponse("User Registered Successfully"));
     }
 
     // ==========================
@@ -43,6 +45,11 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<AuthResponse> login(@RequestBody LoginRequest request) {
 
+        if (request.getEmail() == null || request.getPassword() == null) {
+            return ResponseEntity.badRequest()
+                    .body(new AuthResponse("Email and password are required"));
+        }
+
         User user = userService.findByEmail(request.getEmail());
 
         if (user == null) {
@@ -50,11 +57,11 @@ public class AuthController {
                     .body(new AuthResponse("User not found"));
         }
 
-        if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
+        if (!userService.passwordMatches(request.getPassword(), user.getPassword())) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(new AuthResponse("Invalid credentials"));
         }
-
+        
         return ResponseEntity.ok(
                 new AuthResponse(
                         "Login Successful",
@@ -62,7 +69,7 @@ public class AuthController {
                         user.getName(),
                         user.getEmail(),
                         user.getRole().name(),
-                        user.getProfileImage()   // 🔥 FIXED (image included)
+                        user.getProfileImage()
                 )
         );
     }
