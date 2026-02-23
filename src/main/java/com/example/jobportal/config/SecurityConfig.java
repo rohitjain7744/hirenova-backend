@@ -27,7 +27,8 @@ public class SecurityConfig {
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/auth/**").permitAll()
-                .anyRequest().permitAll()
+                .requestMatchers("/jobs/**").permitAll()
+                .anyRequest().authenticated()
             );
 
         return http.build();
@@ -40,11 +41,11 @@ public class SecurityConfig {
 
         configuration.setAllowedOrigins(List.of(
                 "http://localhost:5173",
-                "https://hirenova.vercel.app"  // later production frontend
+                "https://hirenova.vercel.app"
         ));
 
         configuration.setAllowedMethods(List.of(
-                "GET","POST","PUT","DELETE","OPTIONS"
+                "GET", "POST", "PUT", "DELETE", "OPTIONS"
         ));
 
         configuration.setAllowedHeaders(List.of("*"));
