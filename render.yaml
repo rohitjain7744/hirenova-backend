@@ -1,0 +1,6 @@
+services:
+  - type: web
+    name: hirenova-backend
+    env: java
+    buildCommand: "./mvnw clean install"
+    startCommand: "java -jar target/*.jar"
