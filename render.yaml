@@ -1,6 +1,6 @@
 services:
   - type: web
     name: hirenova-backend
-    env: java
+    runtime: docker
     buildCommand: "./mvnw clean install"
     startCommand: "java -jar target/*.jar"
