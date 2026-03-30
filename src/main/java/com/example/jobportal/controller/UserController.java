@@ -16,7 +16,7 @@ import com.example.jobportal.repositories.UserRepository;
 
 @RestController
 @RequestMapping("/users")
-@CrossOrigin(origins = "http://localhost:5173")
+@CrossOrigin(origins = "*") // allow production + local
 public class UserController {
 
     private final UserRepository userRepository;
@@ -36,18 +36,28 @@ public class UserController {
             @PathVariable Long id,
             @RequestBody User updatedUser) {
 
-        User user = userRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        try {
+            User user = userRepository.findById(id)
+                    .orElseThrow(() -> new RuntimeException("User not found"));
 
-        if (!user.getEmail().equals(updatedUser.getEmail())
-                && userRepository.existsByEmail(updatedUser.getEmail())) {
-            return ResponseEntity.badRequest().body("Email already in use");
+            if (updatedUser.getEmail() == null || updatedUser.getEmail().isEmpty()) {
+                return ResponseEntity.badRequest().body("Email is required");
+            }
+
+            if (!user.getEmail().equals(updatedUser.getEmail())
+                    && userRepository.existsByEmail(updatedUser.getEmail())) {
+                return ResponseEntity.badRequest().body("Email already in use");
+            }
+
+            user.setName(updatedUser.getName());
+            user.setEmail(updatedUser.getEmail());
+
+            return ResponseEntity.ok(userRepository.save(user));
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(500).body("Update failed: " + e.getMessage());
         }
-
-        user.setName(updatedUser.getName());
-        user.setEmail(updatedUser.getEmail());
-
-        return ResponseEntity.ok(userRepository.save(user));
     }
 
     // ==========================
@@ -56,40 +66,54 @@ public class UserController {
     @PostMapping("/upload-photo/{id}")
     public ResponseEntity<?> uploadPhoto(
             @PathVariable Long id,
-            @RequestParam("image") MultipartFile file
-    ) throws IOException {
+            @RequestParam("image") MultipartFile file) {
 
-        User user = userRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        try {
+            User user = userRepository.findById(id)
+                    .orElseThrow(() -> new RuntimeException("User not found"));
 
-        if (file.isEmpty()) {
-            return ResponseEntity.badRequest().body("File is empty");
-        }
+            // ✅ null + empty check
+            if (file == null || file.isEmpty()) {
+                return ResponseEntity.badRequest().body("File is missing or empty");
+            }
 
-        String contentType = file.getContentType();
-        if (contentType == null || !contentType.startsWith("image/")) {
-            return ResponseEntity.badRequest().body("Only image files allowed");
-        }
+            // ✅ safe content-type check
+            String contentType = file.getContentType();
+            if (contentType == null || !contentType.startsWith("image/")) {
+                return ResponseEntity.badRequest().body("Only image files allowed");
+            }
 
-        Path uploadPath = Paths.get("uploads/profile");
-
-        if (!Files.exists(uploadPath)) {
+            // ✅ create directory safely
+            Path uploadPath = Paths.get("uploads/profile");
             Files.createDirectories(uploadPath);
+
+            // ✅ delete old file (if exists)
+            if (user.getProfileImage() != null) {
+                Path oldPath = uploadPath.resolve(user.getProfileImage());
+                Files.deleteIfExists(oldPath);
+            }
+
+            // ✅ unique filename
+            String fileName = System.currentTimeMillis() + "_" + file.getOriginalFilename();
+            Path filePath = uploadPath.resolve(fileName);
+
+            // ✅ write file
+            Files.write(filePath, file.getBytes());
+
+            // ✅ update DB
+            user.setProfileImage(fileName);
+            userRepository.save(user);
+
+            return ResponseEntity.ok(Map.of(
+                    "message", "Upload successful",
+                    "fileName", fileName,
+                    "imageUrl", "/users/profile-image/" + fileName
+            ));
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(500).body("Upload failed: " + e.getMessage());
         }
-
-        if (user.getProfileImage() != null) {
-            Path oldPath = uploadPath.resolve(user.getProfileImage());
-            Files.deleteIfExists(oldPath);
-        }
-
-        String fileName = System.currentTimeMillis() + "_" + file.getOriginalFilename();
-        Path filePath = uploadPath.resolve(fileName);
-
-        Files.write(filePath, file.getBytes());
-
-        user.setProfileImage(fileName);
-
-        return ResponseEntity.ok(userRepository.save(user));
     }
 
     // ==========================
@@ -97,25 +121,29 @@ public class UserController {
     // ==========================
     @GetMapping("/profile-image/{fileName}")
     public ResponseEntity<Resource> getProfileImage(
-            @PathVariable String fileName) throws IOException {
+            @PathVariable String fileName) {
 
-        Path path = Paths.get("uploads/profile").resolve(fileName);
-        Resource resource = new UrlResource(path.toUri());
+        try {
+            Path path = Paths.get("uploads/profile").resolve(fileName).normalize();
+            Resource resource = new UrlResource(path.toUri());
 
-        if (!resource.exists()) {
-            return ResponseEntity.notFound().build();
+            if (!resource.exists() || !resource.isReadable()) {
+                return ResponseEntity.notFound().build();
+            }
+
+            String contentType = Files.probeContentType(path);
+            if (contentType == null) {
+                contentType = "application/octet-stream";
+            }
+
+            return ResponseEntity.ok()
+                    .contentType(MediaType.parseMediaType(contentType))
+                    .body(resource);
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(500).build();
         }
-
-        String contentType = Files.probeContentType(path);
-        if (contentType == null) {
-            contentType = "application/octet-stream";
-        }
-
-        return ResponseEntity.ok()
-                .contentType(MediaType.parseMediaType(contentType))
-                .header(HttpHeaders.CONTENT_DISPOSITION,
-                        "inline; filename=\"" + fileName + "\"")
-                .body(resource);
     }
 
     // ==========================
@@ -126,19 +154,25 @@ public class UserController {
             @PathVariable Long id,
             @RequestBody Map<String, String> request) {
 
-        User user = userRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        try {
+            User user = userRepository.findById(id)
+                    .orElseThrow(() -> new RuntimeException("User not found"));
 
-        String newPassword = request.get("newPassword");
+            String newPassword = request.get("newPassword");
 
-        if (newPassword == null || newPassword.length() < 6) {
-            return ResponseEntity.badRequest().body("Password too short");
+            if (newPassword == null || newPassword.length() < 6) {
+                return ResponseEntity.badRequest().body("Password too short");
+            }
+
+            user.setPassword(passwordEncoder.encode(newPassword));
+            userRepository.save(user);
+
+            return ResponseEntity.ok("Password updated");
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(500).body("Password update failed");
         }
-
-        user.setPassword(passwordEncoder.encode(newPassword));
-        userRepository.save(user);
-
-        return ResponseEntity.ok("Password updated");
     }
 
     // ==========================
@@ -147,11 +181,17 @@ public class UserController {
     @DeleteMapping("/delete/{id}")
     public ResponseEntity<?> deleteAccount(@PathVariable Long id) {
 
-        if (!userRepository.existsById(id)) {
-            return ResponseEntity.badRequest().body("User not found");
-        }
+        try {
+            if (!userRepository.existsById(id)) {
+                return ResponseEntity.badRequest().body("User not found");
+            }
 
-        userRepository.deleteById(id);
-        return ResponseEntity.ok("Account deleted");
+            userRepository.deleteById(id);
+            return ResponseEntity.ok("Account deleted");
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(500).body("Delete failed");
+        }
     }
 }
